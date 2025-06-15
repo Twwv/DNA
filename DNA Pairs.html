@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNA Base Pair Matcher</title>
+    <style>
+        /* Basic page styling */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f8ff; /* Light blue background */
+            margin: 0;
+            color: #333;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+
+        /* Main container for the game */
+        .container {
+            background-color: #fff;
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            box-sizing: border-box; /* Include padding in width calculation */
+        }
+
+        /* Game title */
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 25px;
+            font-size: 2.2em;
+        }
+
+        /* Box displaying the question base */
+        .question-box {
+            background-color: #e6f7ff; /* Lighter blue */
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #b3e0ff;
+        }
+
+        /* The actual base letter (A, T, G, C) */
+        #given-base {
+            font-size: 3.5em;
+            font-weight: bold;
+            color: #007bff; /* Bright blue */
+            margin: 10px 0;
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 5px;
+            background-color: #d1ecf1;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        /* Grid layout for answer buttons */
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); /* Two columns */
+            gap: 15px; /* Space between buttons */
+            margin-bottom: 30px;
+        }
+
+        /* Styling for each answer button */
+        .option-button {
+            background-color: #add8e6; /* Light steel blue */
+            color: #333;
+            border: none;
+            padding: 15px 25px;
+            font-size: 1.5em;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out; /* Smooth transitions */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Hover effect for buttons */
+        .option-button:hover {
+            background-color: #87cefa; /* Sky blue */
+            transform: translateY(-2px); /* Slight lift */
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Click effect for buttons */
+        .option-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Feedback message (Correct/Incorrect) */
+        #feedback {
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-top: 20px;
+            min-height: 25px; /* Prevent layout shift */
+        }
+
+        /* Color for correct feedback */
+        .correct {
+            color: #28a745; /* Green */
+        }
+
+        /* Color for incorrect feedback */
+        .incorrect {
+            color: #dc3545; /* Red */
+        }
+
+        /* Score display */
+        #score-display {
+            font-size: 1.4em;
+            margin-top: 20px;
+            color: #555;
+            font-weight: bold;
+        }
+
+        /* Score number highlight */
+        #score {
+            color: #007bff; /* Bright blue */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>DNA Base Pair Matcher</h1>
+        <div class="question-box">
+            <p>What base does this pair with?</p>
+            <span id="given-base">A</span>
+        </div>
+
+        <div class="options-grid" id="options">
+            <button class="option-button" data-base="A">A</button>
+            <button class="option-button" data-base="T">T</button>
+            <button class="option-button" data-base="G">G</button>
+            <button class="option-button" data-base="C">C</button>
+        </div>
+
+        <div id="feedback"></div>
+        <div id="score-display">Score: <span id="score">0</span></div>
+
+        <audio id="correct-sound" src="ding.mp3" preload="auto"></audio>
+        <audio id="incorrect-sound" src="buzzer.mp3" preload="auto"></audio>
+    </div>
+
+    <script>
+        // Defines the correct DNA base pairings
+        const basePairs = {
+            'A': 'T',
+            'T': 'A',
+            'G': 'C',
+            'C': 'G'
+        };
+
+        // All possible DNA bases
+        const bases = ['A', 'T', 'G', 'C'];
+
+        // Game state variables
+        let currentGivenBase = ''; // The base displayed in the question
+        let score = 0;             // Player's current score
+        let answerBlocked = false; // Prevents multiple clicks while processing an answer
+
+        // Get references to HTML elements for easy access
+        const givenBaseDisplay = document.getElementById('given-base');
+        const optionsContainer = document.getElementById('options');
+        const feedbackDisplay = document.getElementById('feedback');
+        const scoreDisplay = document.getElementById('score');
+        const correctSound = document.getElementById('correct-sound');
+        const incorrectSound = document.getElementById('incorrect-sound');
+
+        // Delay (in milliseconds) before the next question automatically appears
+        const AUTO_ADVANCE_DELAY = 1500; // 1.5 seconds
+
+        /**
+         * Generates and displays a new DNA base pairing question.
+         */
+        function generateQuestion() {
+            answerBlocked = false; // Allow the user to answer the new question
+            feedbackDisplay.textContent = ''; // Clear any previous feedback message
+            feedbackDisplay.classList.remove('correct', 'incorrect'); // Remove feedback coloring
+
+            // Randomly select a base for the new question
+            const randomIndex = Math.floor(Math.random() * bases.length);
+            currentGivenBase = bases[randomIndex];
+            givenBaseDisplay.textContent = currentGivenBase; // Update the displayed base
+
+            // Re-enable and reset the appearance of all answer buttons
+            Array.from(optionsContainer.children).forEach(button => {
+                button.disabled = false; // Make the button clickable again
+                button.style.opacity = '1'; // Ensure full visibility
+                button.style.backgroundColor = '#add8e6'; // Reset to default color
+                button.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)'; // Reset default shadow
+            });
+        }
+
+        /**
+         * Handles the user's click on an answer option.
+         */
+        optionsContainer.addEventListener('click', (event) => {
+            // Only proceed if a button was clicked and answering isn't blocked
+            if (event.target.classList.contains('option-button') && !answerBlocked) {
+                answerBlocked = true; // Block further clicks for this question
+
+                const selectedBase = event.target.dataset.base; // Get the base the user selected
+                const correctPair = basePairs[currentGivenBase]; // Determine the correct base pair
+
+                if (selectedBase === correctPair) {
+                    // If the answer is correct
+                    feedbackDisplay.textContent = 'Correct!';
+                    feedbackDisplay.classList.remove('incorrect');
+                    feedbackDisplay.classList.add('correct');
+                    score++; // Add one point to the score
+                    correctSound.currentTime = 0; // Rewind sound to start for immediate replay
+                    correctSound.play(); // Play the correct "ding" sound
+                } else {
+                    // If the answer is incorrect
+                    feedbackDisplay.textContent = `Incorrect. ${currentGivenBase} pairs with ${correctPair}.`;
+                    feedbackDisplay.classList.remove('correct');
+                    feedbackDisplay.classList.add('incorrect');
+                    score--; // Subtract one point from the score
+                    incorrectSound.currentTime = 0; // Rewind sound to start
+                    incorrectSound.play(); // Play the incorrect "buzzer" sound
+                }
+
+                scoreDisplay.textContent = score; // Update the displayed score
+
+                // Visually highlight the correct choice and disable all buttons
+                Array.from(optionsContainer.children).forEach(button => {
+                    button.disabled = true; // Disable all buttons to prevent more clicks
+                    if (button.dataset.base === correctPair) {
+                        button.style.backgroundColor = '#90ee90'; // Light green for the correct option
+                        button.style.boxShadow = '0 0 10px #90ee90'; /* Add a glow */
+                    } else if (button.dataset.base === selectedBase) {
+                        button.style.backgroundColor = '#ff6347'; // Tomato red for the incorrect option selected
+                        button.style.boxShadow = '0 0 10px #ff6347'; /* Add a glow */
+                    } else {
+                        button.style.opacity = '0.6'; // Dim other unselected options
+                    }
+                });
+
+                // Set a timer to automatically advance to the next question
+                setTimeout(generateQuestion, AUTO_ADVANCE_DELAY);
+            }
+        });
+
+        // Start the game by generating the first question when the page loads
+        generateQuestion();
+    </script>
+</body>
+</html>
